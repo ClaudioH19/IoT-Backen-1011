@@ -69,3 +69,9 @@ El ESP32 Wokwi debe acceder al broker MQTT por Internet. La API de Render **no r
 | Hay mensajes repetidos | La API solo cuenta una vez cada `(experimento,nodo,ronda,protocolo,secuencia)` |
 
 **Precaución:** API y broker no piden contraseñas. Son intencionalmente públicos para simplificar **este ensayo temporal**, por lo que terceros podrían enviar datos falsos. No uses información privada, no expongas bases de datos de otros proyectos, y detén el broker con `docker compose down` al terminar. No dejes el puerto 1883 abierto permanentemente. Las métricas de bytes son estimaciones a nivel de aplicación, no mediciones de red o de energía.
+
+## Identificadores con nombre (actualización de esta versión)
+
+Después de actualizar Render con este backend, acepta `N01_ana`, `N02_pedro`, `N03_luis` y también `N01`, `N02`, `N03` antiguos. No se modifica ninguna ruta ni la estructura de la base. El nombre va dentro de `nodo_id`, por lo que métricas, consultas y tópicos MQTT se separan automáticamente.
+
+Para probarlo: abre `/docs` y manda el mismo JSON del Ejercicio 1 con `"nodo_id": "N01_ana"`. Debe responder `201`, no `422`. Usa nombres en minúsculas sin tildes ni espacios (entre 2 y 20 caracteres).

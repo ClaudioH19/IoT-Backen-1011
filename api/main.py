@@ -18,7 +18,7 @@ app = FastAPI(title='IoT: HTTP y MQTT', version='2.0', lifespan=lifespan)
 
 class Medicion(BaseModel):
     experimento: str = Field(pattern=r'^[A-Za-z0-9_-]{2,40}$')
-    nodo_id: str = Field(pattern=r'^N0[1-3]$')
+    nodo_id: str = Field(pattern=r'^N0[1-3](?:_[a-z0-9]{2,20})?$')
     zona: str = Field(pattern=r'^[A-Za-z0-9_-]{2,30}$')
     ronda: str = Field(pattern=r'^[A-Za-z0-9_-]{2,30}$')
     secuencia: int = Field(ge=1, le=1000000)

@@ -66,6 +66,35 @@ class BackendTest(unittest.TestCase):
         self.assertGreater(s['http']['mensaje_estimado_total_bytes'], s['http']['json_total_bytes'])
         self.assertGreater(s['mqtt']['mensaje_estimado_total_bytes'], s['mqtt']['json_total_bytes'])
 
+    def test_named_nodes_separate_metrics_and_topics(self):
+        # Dos alumnos pueden compartir el prefijo N01 sin mezclar mediciones.
+        for node in ('N01_ana', 'N01_pedro'):
+            response = self.client.post('/mediciones', json=self.payload(node, 1))
+            self.assertEqual(response.status_code, 201)
+            self.assertTrue(response.json()['registrada'])
+        a = self.client.get('/metricas', params={'experimento':'labtest',
+                  'nodo_id':'N01_ana','ronda':'R01'}).json()['por_protocolo']
+        b = self.client.get('/metricas', params={'experimento':'labtest',
+                  'nodo_id':'N01_pedro','ronda':'R01'}).json()['por_protocolo']
+        self.assertEqual(a['http']['recibidas'], 1)
+        self.assertEqual(b['http']['recibidas'], 1)
+        data = self.payload('N01_ana', 2)
+        topic = 'doctorado/labtest/N01_ana/telemetria'
+        r = self.client.post('/ingesta/mqtt', json=data, headers={
+            'X-MQTT-Topic': topic, 'X-MQTT-Payload-Bytes':'150'})
+        self.assertEqual(r.status_code, 201)
+        wrong = self.client.post('/ingesta/mqtt', json=self.payload('N01_ana',3),
+             headers={'X-MQTT-Topic':'doctorado/labtest/N01_pedro/telemetria'})
+        self.assertEqual(wrong.status_code, 422)
+        metric = self.client.get('/metricas', params={'experimento':'labtest',
+            'nodo_id':'N01_ana','ronda':'R01'}).json()['por_protocolo']
+        self.assertEqual(metric['mqtt']['recibidas'], 1)
+
+    def test_reject_bad_student_node(self):
+        for node in ('N01_ana maria', 'N01_á', 'N01_name/telemetria', 'N04_ana'):
+            response = self.client.post('/mediciones', json=self.payload(node, 1))
+            self.assertEqual(response.status_code, 422)
+
     def test_nodes(self):
         self.client.post('/mediciones', json=self.payload('N01', 11))
         nodes = self.client.get('/nodos',params={'experimento':'labtest'}).json()['nodos']
