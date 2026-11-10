@@ -1,5 +1,6 @@
-datos/
-*.db
 __pycache__/
 .pytest_cache/
-.venv/
+*.pyc
+*.db
+.git/
+tests/

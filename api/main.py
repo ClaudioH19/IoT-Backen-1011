@@ -1,10 +1,11 @@
 """API de laboratorio. Sin claves, para datos ficticios y uso temporal exclusivamente."""
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 from .storage import init_db, save, list_data, stats
+from .mqtt_ws import broker
 
 
 @asynccontextmanager
@@ -53,31 +54,13 @@ async def raw_limited(request: Request):
 
 @app.get('/salud')
 def salud():
-    return {'estado': 'ok'}
+    return {'estado': 'ok', 'http': 'disponible', 'mqtt_wss': '/mqtt'}
 
 
 @app.post('/mediciones', status_code=201)
 async def receive_http(event: Medicion, request: Request):
     raw = await raw_limited(request)
     return {'protocolo': 'http', **save(event, 'http', len(raw), http_estimate(request, raw))}
-
-
-@app.post('/ingesta/mqtt', status_code=201, include_in_schema=False)
-async def receive_mqtt(event: Medicion, request: Request):
-    # Exclusivamente consumida por el puente. No autenticación: usar SOLO en entorno temporal.
-    raw = await raw_limited(request)
-    topic = request.headers.get('X-MQTT-Topic', '')
-    expected = f'doctorado/{event.experimento}/{event.nodo_id}/telemetria'
-    if topic != expected:
-        raise HTTPException(status_code=422, detail='Tópico y nodo no coinciden')
-    try:
-        original_size = int(request.headers.get('X-MQTT-Payload-Bytes', str(len(raw))))
-    except ValueError:
-        raise HTTPException(status_code=422, detail='Tamaño MQTT inválido')
-    if not 1 <= original_size <= 1024:
-        raise HTTPException(status_code=422, detail='Tamaño MQTT fuera de rango')
-    return {'protocolo': 'mqtt', **save(event, 'mqtt', original_size,
-                                        mqtt_qos0_estimate(original_size, topic), topic)}
 
 
 @app.get('/mediciones')
@@ -134,3 +117,13 @@ def metrics_serial(experimento: str = Query(min_length=2), nodo_id: str = Query(
                      f'ventana {v["duracion_recepciones_segundos"]} s')
     lines.append('Excluye TCP/IP, WiFi, TLS, conexion, retransmisiones y energia.')
     return '\n'.join(lines) + '\n'
+
+
+@app.get('/estado')
+def estado():
+    return {'mqtt': broker.snapshot(), 'ruta_wss': '/mqtt', 'observacion': 'broker MQTT 3.1.1 limitado a este laboratorio'}
+
+
+@app.websocket('/mqtt')
+async def mqtt_over_websocket(ws: WebSocket):
+    await broker.serve(ws, Medicion, mqtt_qos0_estimate)
